@@ -42,6 +42,7 @@
 #define N_LENG      0xfe    // length of preceding entry
 
 /* Entries in the STABS table are formatted as follows. */
+//stab指的是symbol Table String
 struct stab {
     uint32_t n_strx;        // index into string table of name
     uint8_t n_type;         // type of symbol
