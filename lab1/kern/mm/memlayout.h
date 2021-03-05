@@ -10,7 +10,7 @@
 #define SEG_UDATA    4
 #define SEG_TSS        5
 
-/* global descriptor numbers */
+/* global descriptor numbers 段选择子，由段号左移三位得到*/
 #define GD_KTEXT    ((SEG_KTEXT) << 3)        // kernel text
 #define GD_KDATA    ((SEG_KDATA) << 3)        // kernel data
 #define GD_UTEXT    ((SEG_UTEXT) << 3)        // user text

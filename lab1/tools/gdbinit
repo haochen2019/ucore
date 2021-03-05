@@ -1,5 +1,10 @@
-file obj/bootblock.o
 target remote :1234
-break bootmain
-continue
-
+set  architecture i8086
+#file obj/bootblock.o
+file bin/kernel
+#b bootmain
+b init.c:87
+b init.c:100   
+b  trap.c:172
+b trap.c:189
+b trapentry.S:9
