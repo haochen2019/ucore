@@ -1,3 +1,5 @@
 file bin/kernel
+set architecture i8086
 target remote :1234
-break kern_init
+break pmm_init
+b page_init

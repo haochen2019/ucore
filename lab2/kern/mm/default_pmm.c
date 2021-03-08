@@ -116,7 +116,9 @@ default_init_memmap(struct Page *base, size_t n) {
     base->property = n;
     SetPageProperty(base);
     nr_free += n;
-    list_add(&free_list, &(base->page_link));
+    //list_add(&free_list, &(base->page_link));
+    //first fit算法要求内存块地址从小到大，而init_memmap外层遍历取出物理地址顺序即是从小到大
+    list_add_before(&free_list,&(base->page_link));
 }
 
 static struct Page *
@@ -135,12 +137,15 @@ default_alloc_pages(size_t n) {
         }
     }
     if (page != NULL) {
-        list_del(&(page->page_link));
+        //list_del(&(page->page_link));
         if (page->property > n) {
             struct Page *p = page + n;
             p->property = page->property - n;
-            list_add(&free_list, &(p->page_link));
+            //list_add(&free_list, &(p->page_link));
+            SetPageProperty(p);
+            list_add_after(&(page->page_link),&(p->page_link));
     }
+        list_del(&(page->page_link));
         nr_free -= n;
         ClearPageProperty(page);
     }
@@ -163,11 +168,13 @@ default_free_pages(struct Page *base, size_t n) {
         p = le2page(le, page_link);
         le = list_next(le);
         if (base + base->property == p) {
+            //和后面空闲块连上
             base->property += p->property;
             ClearPageProperty(p);
             list_del(&(p->page_link));
         }
         else if (p + p->property == base) {
+            //和前面空闲块连上
             p->property += base->property;
             ClearPageProperty(base);
             base = p;
@@ -175,7 +182,13 @@ default_free_pages(struct Page *base, size_t n) {
         }
     }
     nr_free += n;
-    list_add(&free_list, &(base->page_link));
+    le = list_next(&free_list);
+    while(le != &free_list){
+        p = le2page(le,page_link);
+        if(base+base->property <= p) break;
+        le = list_next(le);//le为第一个地址大于当前空闲块的位置
+    }
+    list_add_before(le, &(base->page_link));
 }
 
 static size_t

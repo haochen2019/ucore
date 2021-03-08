@@ -201,6 +201,7 @@ page_init(void) {
         if (memmap->map[i].type == E820_ARM) {
             if (maxpa < end && begin < KMEMSIZE) {
                 maxpa = end;
+                cprintf("maxpa: %08llx \n",maxpa);
             }
         }
     }
@@ -211,12 +212,12 @@ page_init(void) {
     extern char end[];
 
     npage = maxpa / PGSIZE;
-    pages = (struct Page *)ROUNDUP((void *)end, PGSIZE);
-
+    pages = (struct Page *)ROUNDUP((void *)end, PGSIZE);//pages是 BSS结束处
+    cprintf("npage:%d, pages: %08llx \n",npage,pages);
     for (i = 0; i < npage; i ++) {
         SetPageReserved(pages + i);
     }
-
+    //pages到freemem为page数组空间
     uintptr_t freemem = PADDR((uintptr_t)pages + sizeof(struct Page) * npage);
 
     for (i = 0; i < memmap->nr_map; i ++) {
@@ -317,7 +318,7 @@ pmm_init(void) {
 
 }
 
-//get_pte - get pte and return the kernel virtual address of this pte for la
+//get_pte - get pte and return the kernel virtual address of this pte for la获得页表项指针
 //        - if the PT contians this pte didn't exist, alloc a page for PT
 // parameter:
 //  pgdir:  the kernel virtual base address of PDT
@@ -347,18 +348,21 @@ get_pte(pde_t *pgdir, uintptr_t la, bool create) {
      *   PTE_W           0x002                   // page table/directory entry flags bit : Writeable
      *   PTE_U           0x004                   // page table/directory entry flags bit : User can access
      */
-#if 0
-    pde_t *pdep = NULL;   // (1) find page directory entry
-    if (0) {              // (2) check if entry is not present
-                          // (3) check if creating is needed, then alloc page for page table
-                          // CAUTION: this page is used for page table, not for common data page
-                          // (4) set page reference
-        uintptr_t pa = 0; // (5) get linear address of page
-                          // (6) clear page content using memset
-                          // (7) set page directory entry's permission
+//#if 0
+    pde_t *pdep = &pgdir[PDX(la)];                                                                  // (1) find page directory entry
+    if (!(*pdep & PTE_P)) {                                                                         // (2) check if entry is not present
+        struct Page* page=NULL;                                                                      // (3) check if creating is needed, then alloc page for page table
+        if(!create || (page = alloc_page())== NULL){                                        // CAUTION: this page is used for page table, not for common data page
+            return NULL;
+        }         
+        set_page_ref(page,1);
+        //二级页表所对应的物理页  ,pages[index]的下标就是物理地址                                                                                // (4) set page reference
+        uintptr_t pa = page2pa(page);                                                                       // (5) get linear address of page
+        memset(KADDR(pa),0,PGSIZE);                                                                                           // (6) clear page content using memset
+        *pdep = pa|PTE_U|PTE_W|PTE_P;                                                                                          // (7) set page directory entry's permission
     }
-    return NULL;          // (8) return page table entry
-#endif
+    return &((pte_t*)KADDR(PDE_ADDR(*pdep)))[PTX(la)];          // (8) return page table entry
+//#endif
 }
 
 //get_page - get related Page struct for linear address la using PDT pgdir
@@ -404,6 +408,13 @@ page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep) {
                                   //(6) flush tlb
     }
 #endif
+    if(*ptep & PTE_P){
+        struct Page* page = pte2page(*ptep);
+        int ref = page_ref_dec(page);
+        if(ref == 0) free_page(page);
+        *ptep = 0;
+        tlb_invalidate(pgdir,la);
+    }
 }
 
 //page_remove - free an Page which is related linear address la and has an validated pte
