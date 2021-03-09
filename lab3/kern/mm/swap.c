@@ -95,7 +95,7 @@ swap_out(struct mm_struct *mm, int n, int in_tick)
           //assert(!PageReserved(page));
 
           //cprintf("SWAP: choose victim page 0x%08x\n", page);
-          
+          //获得挑选出来的物理页的虚拟地址
           v=page->pra_vaddr; 
           pte_t *ptep = get_pte(mm->pgdir, v, 0);
           assert((*ptep & PTE_P) != 0);

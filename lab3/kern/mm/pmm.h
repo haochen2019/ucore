@@ -79,12 +79,12 @@ static inline ppn_t
 page2ppn(struct Page *page) {
     return page - pages;
 }
-
+//获得page对应的物理地址
 static inline uintptr_t
 page2pa(struct Page *page) {
     return page2ppn(page) << PGSHIFT;
 }
-
+//获得pa对应的page
 static inline struct Page *
 pa2page(uintptr_t pa) {
     if (PPN(pa) >= npage) {
@@ -92,7 +92,7 @@ pa2page(uintptr_t pa) {
     }
     return &pages[PPN(pa)];
 }
-
+//获得page对应的线性地址
 static inline void *
 page2kva(struct Page *page) {
     return KADDR(page2pa(page));
@@ -102,7 +102,7 @@ static inline struct Page *
 kva2page(void *kva) {
     return pa2page(PADDR(kva));
 }
-
+//获得页表项对应的page
 static inline struct Page *
 pte2page(pte_t pte) {
     if (!(pte & PTE_P)) {

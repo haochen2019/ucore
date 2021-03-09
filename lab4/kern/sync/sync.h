@@ -20,7 +20,7 @@ __intr_restore(bool flag) {
         intr_enable();
     }
 }
-
+//save位关中断，restore位恢复中断控制位
 #define local_intr_save(x)      do { x = __intr_save(); } while (0)
 #define local_intr_restore(x)   __intr_restore(x);
 

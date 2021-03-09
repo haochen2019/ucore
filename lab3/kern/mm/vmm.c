@@ -305,6 +305,7 @@ int
 do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
     int ret = -E_INVAL;
     //try to find a vma which include addr
+    //从当前进程的合法的连续虚拟内存空间块
     struct vma_struct *vma = find_vma(mm, addr);
 
     pgfault_num++;
@@ -396,6 +397,37 @@ do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
         }
    }
 #endif
+    //无法获得页表项
+    if((ptep = get_pte(mm->pgdir,addr,1))== NULL){
+        cprintf("get_pte failed");
+        goto failed;
+    }
+    if(*ptep == 0){//页表项之前不存在
+        if(pgdir_alloc_page(mm->pgdir,addr,perm) == NULL){
+            cprintf("pgdir_alloc faied\n");
+            goto failed;
+        }
+    }
+    else{
+        //页表被交换到了磁盘
+        if(swap_init_ok){
+            struct Page* page = NULL;
+            if((ret = swap_in(mm,addr,&page))!= 0){
+                //swap_in返回值为0，换入成功
+                cprintf("swap_in failed\n");
+                goto failed;
+            }
+            //将换入的页和mm->pgdir页目录对应addr的二级页表项建立映射
+            page_insert(mm->pgdir,page,addr,perm);
+            //当前page可交换，将其加入全局虚拟内存交换管理器统一管理
+            swap_map_swappable(mm,addr,page,1);
+            page->pra_vaddr = addr;
+        }
+        else{
+            cprintf("no vmm mechanism but page fault which denotes page Frame is on disk");
+            goto failed;
+        }
+    }
    ret = 0;
 failed:
     return ret;

@@ -38,22 +38,25 @@ _fifo_init_mm(struct mm_struct *mm)
      //cprintf(" mm->sm_priv %x in fifo_init_mm\n",mm->sm_priv);
      return 0;
 }
-/*
+/* 将page加入到队列头
  * (3)_fifo_map_swappable: According FIFO PRA, we should link the most recent arrival page at the back of pra_list_head qeueue
  */
 static int
 _fifo_map_swappable(struct mm_struct *mm, uintptr_t addr, struct Page *page, int swap_in)
 {
     list_entry_t *head=(list_entry_t*) mm->sm_priv;
+    //获得参数page结构对应的swap链表节点
     list_entry_t *entry=&(page->pra_page_link);
  
     assert(entry != NULL && head != NULL);
     //record the page access situlation
     /*LAB3 EXERCISE 2: YOUR CODE*/ 
     //(1)link the most recent arrival page at the back of the pra_list_head qeueue.
+    //头插法：尾部元素是队列头
+    list_add(head,entry);
     return 0;
 }
-/*
+/* 选择换出的页面（队列头）
  *  (4)_fifo_swap_out_victim: According FIFO PRA, we should unlink the  earliest arrival page in front of pra_list_head qeueue,
  *                            then assign the value of *ptr_page to the addr of this page.
  */
@@ -67,6 +70,13 @@ _fifo_swap_out_victim(struct mm_struct *mm, struct Page ** ptr_page, int in_tick
      /*LAB3 EXERCISE 2: YOUR CODE*/ 
      //(1)  unlink the  earliest arrival page in front of pra_list_head qeueue
      //(2)  assign the value of *ptr_page to the addr of this page
+    list_entry_t *le = head->prev;
+    assert(head != le);
+    struct Page *p = le2page(le,pra_page_link);
+    //将le节点从先进先出队列中删除
+    list_del(le);
+    
+    *ptr_page = p;
      return 0;
 }
 
