@@ -63,6 +63,7 @@ list_entry_t proc_list;
 
 #define HASH_SHIFT          10
 #define HASH_LIST_SIZE      (1 << HASH_SHIFT)
+//取xhash后值的高10位
 #define pid_hashfn(x)       (hash32(x, HASH_SHIFT))
 
 // has list for process set based on pid
@@ -102,6 +103,18 @@ alloc_proc(void) {
      *       uint32_t flags;                             // Process flag
      *       char name[PROC_NAME_LEN + 1];               // Process name
      */
+        proc->state = PROC_UNINIT;
+        proc->pid = -1;
+        proc->runs = 0;
+        proc->kstack = 0;
+        proc->need_resched = 0;
+        proc->parent = NULL;
+        proc->mm = NULL;
+        memset(&(proc->context),0,sizeof(struct context));
+        proc->tf = NULL;
+        proc->cr3 = boot_cr3;
+        proc->flags = 0;
+        memset(proc->name,0,PROC_NAME_LEN);
     }
     return proc;
 }
@@ -296,9 +309,43 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
     //    5. insert proc_struct into hash_list && proc_list
     //    6. call wakeup_proc to make the new child process RUNNABLE
     //    7. set ret vaule using child proc's pid
+    if((proc = alloc_proc()) == NULL){
+        goto fork_out;
+    }
+    proc->parent = current;//父进程为当前进程
+    if(setup_kstack(proc) != 0){
+        //分配栈空间失败，回滚释放之前申请的proc
+        goto bad_fork_cleanup_proc;
+    }
+
+    //分配虚拟内存空间
+    if(copy_mm(clone_flags,proc) != 0){
+        goto bad_fork_cleanup_kstack;
+    }
+
+    //复制proc线程时设置proc的上下文信息
+    copy_thread(proc,stack,tf);
+
+    bool intr_flag;
+    local_intr_save(intr_flag);
+    {
+        //生成并设置新的id
+        proc->pid = get_pid();
+        //加入全局线程控制块哈希表
+        hash_proc(proc);
+
+        //加入全局线程控制块双向链表
+        list_add(&proc_list,&(proc->list_link));
+
+        nr_process++;
+    }
+    local_intr_restore(intr_flag);
+    //唤醒proc，令其处于就绪态
+    wakeup_proc(proc);
+
+    ret = proc->pid;
 fork_out:
     return ret;
-
 bad_fork_cleanup_kstack:
     put_kstack(proc);
 bad_fork_cleanup_proc:
@@ -338,10 +385,10 @@ proc_init(void) {
     if ((idleproc = alloc_proc()) == NULL) {
         panic("cannot alloc idleproc.\n");
     }
-
+    //idle线程初始化
     idleproc->pid = 0;
     idleproc->state = PROC_RUNNABLE;
-    idleproc->kstack = (uintptr_t)bootstack;
+    idleproc->kstack = (uintptr_t)bootstack;//内核栈底
     idleproc->need_resched = 1;
     set_proc_name(idleproc, "idle");
     nr_process ++;

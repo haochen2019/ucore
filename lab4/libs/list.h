@@ -42,7 +42,7 @@ list_init(list_entry_t *elm) {
     elm->prev = elm->next = elm;
 }
 
-/* *
+/* * 将elm插入listelm之后
  * list_add - add a new entry
  * @listelm:    list head to add after
  * @elm:        new entry to be added
